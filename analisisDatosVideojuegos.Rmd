@@ -1,0 +1,338 @@
+---
+title: "Analisis datos videojuego, ejercico 1"
+author: "David de la Torre"
+date: "3/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introducción
+
+El documento se engloba dentro de una serie de documentos de análisis de datos de videojuegos.En esta serie se estudian varias metricas e indicadores comunes en el negocio de los videojuegos. Este es el primero de 3 documentos.
+
+
+# Objetivo
+
+El objetivo de este documento es contestar a las preguntas que componen el ejercicio 1.Con este ejercicio se pretende analizar datos y calcular métricas de sesiones.
+
+Los datos necesarios para resolver los ejercicios se encuentran en la carpeta _datos_ del proyecto.
+
+## Ejercicio 1: Análisis de datos de sesión
+
+1.  Obtener algunas métricas por país:
+  + Media de sesiones, tiempo medio jugado, tiempo jugado por sesión, niveles completados
+  + % Pagadores, ARPDAU, ARPU, ARPPU. . .
+2. Distribución de alguna métrica que consideres interesante.
+3. Comportamiento de la media de sesiones y tiempo medio jugado por sesión del día 0 VS el resto de días.
+4. Análisis exploratorio de los datos. Conclusiones.
+
+Lo primero antes de comenzar a resolver las cuestiones es importar los datos facilitados. Para ello utilizaremos el paquete readr. Este paquete nos permite leer archivos en formato _CSV_. El códig a continuación comprueba si el paquete se encuentra instalado, en caso de que no se encuentre lo instala, y posteriormente lo importa.
+
+```{r,message=FALSE}
+if(!require(readr)) install.packages(readr)
+library(readr)
+```
+
+Podemos proceder a importar los datos y almacenarolos en la variable _datos_ej1_.
+
+```{r, message=FALSE}
+datos_ej2 = read_delim("datos/task2.2.csv",";")
+```
+
+Ahora que ya contamos con los datos en forma de tabla podemos proceder a resolver los ejercicios. Pero antes debemos importar un paquete que nos permita operar, limpiar, ordenar, agrupar, ... los datos. Con el siguiente código instalamos, si fuese necesario necesario, e importamos el paquete.
+
+```{r message=FALSE}
+if(!require(dplyr)) install.packages(dplyr)
+library(dplyr)
+```
+
+
+### 1.1 Obtener algunas métricas por país y plataforma
+
+```{r}
+compras_IAP <- datos_ej2 %>%
+  select(COUNTRY,PLATFORM, IAP_NAME, PURCHASES, PURCHASE_DATE) %>%
+  group_by(COUNTRY, PLATFORM, IAP_NAME) %>%
+  summarise(
+    Total = sum(PURCHASES)
+  )
+
+frecuencia_compras_IAP <- datos_ej2 %>%
+  select(COUNTRY,PLATFORM, IAP_NAME, PURCHASES, PURCHASE_DATE) %>%
+  count(COUNTRY, PLATFORM, IAP_NAME, PURCHASES) %>%
+  group_by(COUNTRY, PLATFORM) %>%
+  mutate(
+    Freq = (n*PURCHASES)/sum(n)
+  )
+```
+
+
+Y los resuyltados de las métricas anteriores serían:
+
+```{r}
+mediaSesiones
+
+tiempoMedioJugado
+
+tiempoMedioJugadoSesion
+
+nivelesCompletados
+```
+Ahora vamos a calcular el segundo grupo de métricas que se pide. Estas son métricas para explicar los  ingresos en la aplicación. Vamos a calcularlas por separado.
+
+Comencemos por la métrica % de Pagadores
+
+```{r message=FALSE, warning=FALSE}
+nPagadores <- datos_ej1 %>%
+  filter(REVENUE > 0) %>%
+  group_by(COUNTRY) %>%
+  summarise(
+    nPag = n()
+  )
+
+nJugadores <- datos_ej1 %>%
+  select(COUNTRY,ID_USER,REVENUE) %>%
+  group_by(COUNTRY) %>%
+  summarise(
+    n = n()
+  )
+
+porcPagadores <- inner_join(nPagadores, nJugadores, by = "COUNTRY") %>%
+  mutate(
+    porcPagadores = (nPag / n) * 100
+  ) %>%
+  select(COUNTRY, porcPagadores)
+
+```
+Continuamos calculando la métrica ARPU (Average Revenue Per User). Es la manera más rápida para observar como la apliacción se está comportando y es muy útil para observar la efectividad de campañas. Para calcularlo tenemos que sacar el total de ingresos de la aplicación y dividirlo entre el numero de usuarios (instalaciones).
+
+```{r message=FALSE, warning=FALSE}
+ARPU <- datos_ej1 %>%
+  select(COUNTRY, ID_USER, REVENUE) %>%
+  group_by(COUNTRY, ID_USER) %>%
+  summarise(
+    N = n(),
+    SUM_REVENUE = sum(REVENUE)
+  ) %>%
+  group_by(COUNTRY) %>%
+  summarise(
+    REVENUE_TOTAL = sum(SUM_REVENUE),
+    N_USUARIOS_UNICOS = n(),
+    ARPU = REVENUE_TOTAL/N_USUARIOS_UNICOS
+  )
+```
+
+La siguiente métrica que vamos a calcular es ARPPU (Average Revenue Per Paying User). Se ha convertido en la manera de medir ingresos en juegos que permiten compras dentro de ellos.
+
+```{r message=FALSE, warning=FALSE}
+ARPPU <- datos_ej1 %>%
+  select(COUNTRY, ID_USER, REVENUE) %>%
+  filter(REVENUE > 0) %>%
+  group_by(COUNTRY, ID_USER) %>%
+  summarise(
+    N = n(),
+    SUM_REVENUE = sum(REVENUE)
+  ) %>%
+  group_by(COUNTRY) %>%
+  summarise(
+    REVENUE_TOTAL = sum(SUM_REVENUE),
+    N_USUARIOS_PAGADORES_UNICOS = n(),
+    ARPPU = REVENUE_TOTAL/N_USUARIOS_PAGADORES_UNICOS
+  )
+```
+Si comparamos ARPU y ARPPU vemos que en el juego el gasto medio entre todos los ususarios es relativamente bajo. Pero una vez que nos fijamos en el gasto que hacen los ususarios que realizan compras en el juego es una cantidad bastante elevada, sobrepasando los 400 en todos los paises e incluso llegando a sobrepasar los 900 en Francia.
+
+
+Para acabar calculamos ARPDAU (Average Revenue Per Daily Active User). Mide los ingresos medios de los usuarios que han utilizado la aplicación en un día. 
+
+```{r message=FALSE, warning=FALSE}
+ARPDAU <- datos_ej1 %>%
+  select(COUNTRY, SESSION_DATE, ID_USER, REVENUE) %>%
+  group_by(COUNTRY,SESSION_DATE, ID_USER) %>%
+  summarise(
+    N = n(),
+    SUM_REVENUE = sum(REVENUE)
+  ) %>%
+  group_by(COUNTRY, SESSION_DATE) %>%
+  summarise(
+    REVENUE_TOTAL = sum(SUM_REVENUE),
+    N_USUARIOS_UNICOS = n(),
+    ARPDAU = REVENUE_TOTAL / N_USUARIOS_UNICOS
+  ) %>%
+  group_by(COUNTRY) %>%
+  summarise(
+    ARPDAU_MEDIO = sum(ARPDAU)/11 
+  )
+```
+
+
+### 1.2 Distribución de alguna métrica uqe consideres interesante
+
+Para estudiar la distribución de las variables vamos a hacerlo de manera gráfica. Para ello necesitamos un paquete que nos permita realizar visualizaciones. Con el siguiente código instalamos el paquete necesario.
+
+```{r message=FALSE}
+if(!require(ggplot2)) install.packages(ggplot2)
+library(ggplot2)
+
+if(!require(patchwork)) install.packages(patchwork)
+library(patchwork)
+```
+
+Una vez importado el paquete necesario podemos proceder a realizar visualizaciones que nos faciliten la comprensión de los datos, en este caso la distribución de estos. Para ello utilizaremos diagramas de cajas.
+
+Con el siguiente código generamos un diagrama de cajas para cada una de las variables.
+
+```{r}
+config.estilosBoxPlot <- list(
+  theme(
+    axis.text.y  = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+)
+```
+
+```{r}
+g_disp_GAME_TIME <- datos_ej1 %>% 
+  mutate(
+    GAME_TIME_S = GAME_TIME/1000
+  ) %>%
+  ggplot() +
+  geom_boxplot(aes(x = GAME_TIME_S)) +
+  theme_classic() +
+  config.estilosBoxPlot
+
+g_disp_GAME_TIME
+
+```
+
+Podemos ver que la distribución de los datos .
+
+```{r}
+
+ g_disp_COMPLETED_LEVELS <- datos_ej1 %>% 
+  ggplot() +
+  geom_boxplot(aes(x = COMPLETED_LEVELS)) +
+  theme_classic() +
+  config.estilosBoxPlot
+
+g_disp_COMPLETED_LEVELS
+
+```
+
+Podemos ver que en este caso la mayoría de los datos se distribuyen entre 0 y 4 niveles. Lo que nos indica que la mayoría de jugadores se estancan en el nivel 4. También nos encontramos con _outliers_, que son valores a tipicos que tendremos que tender en cuenta a la hora de realizar cualquier análisis.
+
+### 1.3. Comportamiento de la media de sesiones y tiempo medio jugado por sesión del día 0 VS el resto de días.
+
+```{r message=FALSE, warning=FALSE}
+m <- datos_ej1 %>%
+  group_by(SESSION_DATE) %>%
+  summarise(
+    n=n(),
+    media = mean(n)
+  )
+
+tMJ <- datos_ej1 %>%
+  select(SESSION_DATE,GAME_TIME) %>%
+  group_by(SESSION_DATE) %>%
+  summarise(
+    n= n(),
+    media_tiempo_jugado = mean(GAME_TIME)
+  ) %>%
+  arrange(SESSION_DATE)
+```
+```{r message=FALSE, warning=FALSE}
+#sesiones repetidas
+
+datos_ej1 %>%
+  select(ID_SESSION, SESSION_DATE) %>%
+  group_by(ID_SESSION, SESSION_DATE) %>%
+  summarise(
+    n = n()
+  ) %>%
+  filter(n>1)
+```
+
+### 1.4 EDA (Exploratory Data Analysis)
+
+Empezamos por comprobar si existe algun valor vacio dentro de los datos, para ello ejecutamos el siguiente código.
+
+```{r}
+sum(is.na(datos_ej1))
+```
+Como podemos comprobar el resultado es 0. En este caso los datos ya se encuentran "limpios" de cualquier valor vacío y no deberemos tenerlos en cuenta.
+
+A continuación vamos a estudiar las distribuciones de algunas de las variables de las que disponemos. En el ejercicio 2 ya hemos estudiado la distribución de las variables _GAME_TIME_ y _COMPLETED_LEVELS_. Como novedad podemos observar que la mayoría de los ingresos son 0 aun que podemos ver que hay varios que superan los cientos llegando algunos a los miles.
+
+
+```{r}
+g_disp_REVENUE <- datos_ej1 %>% 
+  ggplot() +
+  geom_boxplot(aes(x = REVENUE)) +
+  theme_classic() +
+  config.estilosBoxPlot
+
+g_disp_GAMETIME <- datos_ej1 %>% 
+  ggplot() +
+  geom_boxplot(aes(x = GAME_TIME)) +
+  theme_classic() +
+  config.estilosBoxPlot
+
+g_disp_COMPLETED_LEVELS <- datos_ej1 %>% 
+  ggplot() +
+  geom_boxplot(aes(x = COMPLETED_LEVELS)) +
+  theme_classic() +
+  config.estilosBoxPlot
+
+g_disp_REVENUE/g_disp_GAMETIME/g_disp_COMPLETED_LEVELS
+```
+
+Viendo la sitribución de los ingresos nos lleva a pensar si existe algun tipo de relación entre los ingresos y el tiempo de las sesiones. ¿Los usuarios que ingresan más dinero en el juego son los que tienen las sesiones más largas?¿Existe alguna relación?
+
+```{r}
+corrSessRev <- datos_ej1 %>%
+  select(ID_USER, ID_SESSION,GAME_TIME,REVENUE) %>%
+  ggplot() +
+  theme_classic() +
+  geom_point(aes(x=GAME_TIME/1000, y=REVENUE),alpha = 0.5)
+
+corrSessRev
+```
+
+No podemos observar una relación directa entre el tiempo jugado y los ingresos que el juego genera. Vemos que los ingresos de 0 se distribuyen a lo largo de todos los tiempos. No podemos observar ningun patrón en la distribución de lo singresos.
+
+También vamos a estudiar si existe una relación entre los días que la aplicación lleva instalada en el dispositivo y el tiempo de las sesiones.
+
+
+```{r}
+corrDayGameTime <- datos_ej1 %>%
+  mutate(
+    DAY_DIFF = as.Date(SESSION_DATE, "%d/%m/%Y") - as.Date(INSTALL_DATE, "%d/%m/%Y")
+  ) %>%
+  select(INSTALL_DATE,SESSION_DATE,GAME_TIME,COMPLETED_LEVELS,DAY_DIFF) %>%
+  ggplot() +
+  theme_classic() +
+  geom_point(aes(x=GAME_TIME/1000, y=DAY_DIFF),alpha = 0.5)
+
+corrDayGameTime
+```
+
+Podemos observar que cuanto mas tiempo lleva instalado el juego en el dispositivo tiende a disminuir el tiempo que duran las sesiones.
+
+Por último vamos a investigar si existe correlación entre el tiempo de las sesiones y la cantidad de niveles completados. Y adicionalmente vamos a estudiar si existe alguna correlacion con los paises de los jugadores.
+
+
+```{r}
+corrLevGameTime <- datos_ej1 %>%
+  select(ID_USER, ID_SESSION,GAME_TIME,COMPLETED_LEVELS,COUNTRY) %>%
+  ggplot() +
+  theme_classic() +
+  geom_point(aes(x=GAME_TIME/1000, y=COMPLETED_LEVELS, color = COUNTRY))
+
+corrLevGameTime
+```
+Aquí sí que podemos ver que existe una correlación. Podemos decir que la cantidad de niveles superados por los jugadores depende del tiempo de la sesión. Esto tiene cierta lógica, ya que es imposible conseguir superara una gran cantidad de niveles en un corto tiempo. Por muy bueno que sea el jugador lo sniveles tienen un tiempo mínimo para ser completados.
+
+Por otra parte podemos decir que la cantidad de niveles superados y el tiempode cada sesión no guardan relación con la nacionalidad del jugador. No podemos observar ningún patrón en los datos que nos permita afirmar lo contrario.
