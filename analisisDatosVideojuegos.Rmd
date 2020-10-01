@@ -11,23 +11,21 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Introducción
 
-El documento se engloba dentro de una serie de documentos de análisis de datos de videojuegos.En esta serie se estudian varias metricas e indicadores comunes en el negocio de los videojuegos. Este es el primero de 3 documentos.
+El documento se engloba dentro de una serie de documentos de análisis de datos de videojuegos.En esta serie se estudian varias metricas e indicadores comunes en el negocio de los videojuegos. Este es el segundo de 3 documentos.
 
 
 # Objetivo
 
-El objetivo de este documento es contestar a las preguntas que componen el ejercicio 1.Con este ejercicio se pretende analizar datos y calcular métricas de sesiones.
+El objetivo de este documento es contestar a las preguntas que componen el ejercicio 1.Con este ejercicio se pretende analizar datos y calcular métricas de compras en el juego.
 
 Los datos necesarios para resolver los ejercicios se encuentran en la carpeta _datos_ del proyecto.
 
 ## Ejercicio 1: Análisis de datos de sesión
 
-1.  Obtener algunas métricas por país:
-  + Media de sesiones, tiempo medio jugado, tiempo jugado por sesión, niveles completados
-  + % Pagadores, ARPDAU, ARPU, ARPPU. . .
-2. Distribución de alguna métrica que consideres interesante.
-3. Comportamiento de la media de sesiones y tiempo medio jugado por sesión del día 0 VS el resto de días.
-4. Análisis exploratorio de los datos. Conclusiones.
+1. Obtener algunas métricas por país y plataforma: compras por IAP, frecuencia compras IAP, . . .
+2. Comportamiento de estas métricas el día 0 VS el resto de días.
+3. Análisis exploratorio de los datos. Conclusiones.
+
 
 Lo primero antes de comenzar a resolver las cuestiones es importar los datos facilitados. Para ello utilizaremos el paquete readr. Este paquete nos permite leer archivos en formato _CSV_. El códig a continuación comprueba si el paquete se encuentra instalado, en caso de que no se encuentre lo instala, y posteriormente lo importa.
 
@@ -36,7 +34,7 @@ if(!require(readr)) install.packages(readr)
 library(readr)
 ```
 
-Podemos proceder a importar los datos y almacenarolos en la variable _datos_ej1_.
+Podemos proceder a importar los datos y almacenarolos en la variable _datos_ej2_.
 
 ```{r, message=FALSE}
 datos_ej2 = read_delim("datos/task2.2.csv",";")
@@ -57,7 +55,7 @@ compras_IAP <- datos_ej2 %>%
   select(COUNTRY,PLATFORM, IAP_NAME, PURCHASES, PURCHASE_DATE) %>%
   group_by(COUNTRY, PLATFORM, IAP_NAME) %>%
   summarise(
-    Total = sum(PURCHASES)
+    Total_compras = sum(PURCHASES)
   )
 
 frecuencia_compras_IAP <- datos_ej2 %>%
@@ -68,6 +66,32 @@ frecuencia_compras_IAP <- datos_ej2 %>%
     Freq = (n*PURCHASES)/sum(n)
   )
 ```
+
+### 1.2 Comportamiento de estas métricas el día 0 VS el resto de días
+
+```{r}
+compras_IAP_dias <- datos_ej2 %>%
+  select(COUNTRY,PLATFORM, IAP_NAME, PURCHASES, PURCHASE_DATE) %>%
+  mutate(
+    DIA = case_when(
+    PURCHASE_DATE == min(PURCHASE_DATE) ~ 0,
+    TRUE ~ 1
+    )
+  ) %>%
+  group_by(COUNTRY, PLATFORM, IAP_NAME, PURCHASE_DATE) %>%
+  summarise(
+    Total_compras = sum(PURCHASES)
+  )
+
+frecuencia_compras_IAP <- datos_ej2 %>%
+  select(COUNTRY,PLATFORM, IAP_NAME, PURCHASES, PURCHASE_DATE) %>%
+  count(COUNTRY, PLATFORM, IAP_NAME, PURCHASES) %>%
+  group_by(COUNTRY, PLATFORM) %>%
+  mutate(
+    Freq = (n*PURCHASES)/sum(n)
+  )
+```
+
 
 
 Y los resuyltados de las métricas anteriores serían:
